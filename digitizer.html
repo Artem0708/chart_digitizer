@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Digitizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .settings {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .settings label {
+            font-weight: bold;
+        }
+        .settings input, .settings select {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .instructions {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .canvas-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: white;
+            cursor: crosshair;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-process {
+            background: #28a745;
+            color: white;
+        }
+        .btn-clear {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-demo {
+            background: #007bff;
+            color: white;
+        }
+        .btn-download {
+            background: #6c757d;
+            color: white;
+        }
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .point-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .export-options {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Chart Digitizer</h1>
+        
+        <div class="settings">
+            <div>
+                <label for="timeRange">Time Range:</label>
+                <input type="number" id="timeStart" value="0" min="0" style="width: 60px;"> to 
+                <input type="number" id="timeEnd" value="12" min="1" style="width: 60px;">
+            </div>
+            <div>
+                <label for="costRange">Cost Range:</label>
+                <input type="number" id="costMin" value="0" min="0" style="width: 80px;"> to 
+                <input type="number" id="costMax" value="100000" min="1" style="width: 80px;">
+            </div>
+            <div>
+                <label for="periodType">Period Type:</label>
+                <select id="periodType">
+                    <option value="month">Month</option>
+                    <option value="week">Week</option>
+                    <option value="day">Day</option>
+                    <option value="quarter">Quarter</option>
+                    <option value="year">Year</option>
+                </select>
+            </div>
+            <div>
+                <button onclick="applySettings()">Apply Settings</button>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <p>1. Click on canvas to add points (one point per time period)</p>
+            <p>2. Right-click to delete the nearest point</p>
+            <p>3. Points will be automatically connected with a line</p>
+            <p>4. Add minimum 4 points</p>
+            <p>5. Click "Process Data" to get CSV file</p>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="drawingCanvas" width="800" height="500"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn-process" onclick="processData()">📊 Process Data</button>
+            <button class="btn-clear" onclick="clearCanvas()">🔄 Clear All</button>
+            <button class="btn-demo" onclick="loadDemoData()">📈 Demo Data</button>
+            <button class="btn-download" onclick="downloadCSV()" id="downloadBtn" style="display:none;">💾 Download CSV</button>
+        </div>
+
+        <div class="export-options">
+            <h4>Export Options:</h4>
+            <label>
+                <input type="radio" name="exportType" value="original" checked onclick="updateExportType()">
+                Export Only Original Points (exactly what you drew)
+            </label>
+            <br>
+            <label>
+                <input type="radio" name="exportType" value="smoothed" onclick="updateExportType()">
+                Export Smoothed Curve (200 interpolated points)
+            </label>
+            <br>
+            <label>
+                <input type="radio" name="exportType" value="both" onclick="updateExportType()">
+                Export Both (original + smoothed)
+            </label>
+        </div>
+
+        <div class="info-panel">
+            <div id="pointCounter">Points: 0</div>
+            <div id="status">Status: Add points to the chart</div>
+            <div id="timeSlots" class="point-info"></div>
+        </div>
+
+        <div class="results" id="results" style="display:none;">
+            <h3>📊 Digitization Results:</h3>
+            <div id="dataPreview"></div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const pointCounter = document.getElementById('pointCounter');
+        const status = document.getElementById('status');
+        const timeSlots = document.getElementById('timeSlots');
+        const results = document.getElementById('results');
+        const dataPreview = document.getElementById('dataPreview');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Settings
+        let timeRange = [0, 12];
+        let costRange = [0, 100000];
+        let periodType = 'month';
+        let availableTimeSlots = [];
+        let exportType = 'original'; // 'original', 'smoothed', or 'both'
+
+        // Data
+        let points = [];
+        let smoothedPoints = [];
+        let csvData = '';
+
+        // Update export type
+        function updateExportType() {
+            const selected = document.querySelector('input[name="exportType"]:checked');
+            exportType = selected.value;
+        }
+
+        // Initialize time slots
+        function initializeTimeSlots() {
+            availableTimeSlots = [];
+            const [start, end] = timeRange;
+            for (let i = start; i <= end; i++) {
+                availableTimeSlots.push(i);
+            }
+            updateTimeSlotsDisplay();
+        }
+
+        // Update time slots display
+        function updateTimeSlotsDisplay() {
+            const usedSlots = points.map(p => Math.round(p.time));
+            const availableCount = availableTimeSlots.length - usedSlots.length;
+            timeSlots.textContent = `Available time slots: ${availableCount}/${availableTimeSlots.length}`;
+        }
+
+        // Apply settings
+        function applySettings() {
+            timeRange = [
+                parseInt(document.getElementById('timeStart').value),
+                parseInt(document.getElementById('timeEnd').value)
+            ];
+            costRange = [
+                parseInt(document.getElementById('costMin').value),
+                parseInt(document.getElementById('costMax').value)
+            ];
+            periodType = document.getElementById('periodType').value;
+            
+            // Clear existing points
+            points = [];
+            initializeTimeSlots();
+            initCanvas();
+            status.textContent = 'Status: Settings applied';
+        }
+
+        // Canvas initialization
+        function initCanvas() {
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid and axes
+            drawGrid();
+            drawAxes();
+            
+            // Redraw points if any
+            if (points.length > 0) {
+                drawPoints();
+                drawCurve();
+            }
+            
+            updateInfo();
+        }
+
+        // Draw grid
+        function drawGrid() {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            
+            const [timeStart, timeEnd] = timeRange;
+            const timeSteps = timeEnd - timeStart;
+            
+            // Vertical lines (time)
+            for (let i = 0; i <= timeSteps; i++) {
+                const x = (i / timeSteps) * canvas.width;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+                
+                // Time labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(timeStart + i, x - 5, canvas.height - 5);
+            }
+            
+            // Horizontal lines (cost)
+            const costSteps = 10;
+            for (let i = 0; i <= costSteps; i++) {
+                const y = (i / costSteps) * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+                
+                // Cost labels
+                const cost = costRange[1] - (i / costSteps) * (costRange[1] - costRange[0]);
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText(cost.toLocaleString(), 5, y - 5);
+            }
+        }
+
+        // Draw axes
+        function drawAxes() {
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            
+            // X axis
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.stroke();
+            
+            // Y axis
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, canvas.height);
+            ctx.stroke();
+            
+            // Axis labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.fillText('Time (' + periodType + 's)', canvas.width / 2 - 40, canvas.height - 10);
+            
+            ctx.save();
+            ctx.translate(20, canvas.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Cost', 0, 0);
+            ctx.restore();
+        }
+
+        // Click handler
+        canvas.addEventListener('click', function(event) {
+            if (event.button === 0) { // Left click
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                
+                addPoint(x, y);
+            }
+        });
+
+        // Right-click handler for deletion
+        canvas.addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            if (points.length === 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            // Find nearest point
+            let minDistance = Infinity;
+            let nearestIndex = -1;
+            
+            points.forEach((point, index) => {
+                const distance = Math.sqrt(Math.pow(point.canvasX - x, 2) + Math.pow(point.canvasY - y, 2));
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestIndex = index;
+                }
+            });
+            
+            if (minDistance < 20) { // Only delete if click is close to a point
+                points.splice(nearestIndex, 1);
+                initCanvas();
+                status.textContent = 'Status: Point deleted';
+            }
+        });
+
+        // Add point with time slot validation
+        function addPoint(canvasX, canvasY) {
+            const [timeStart, timeEnd] = timeRange;
+            const timeSteps = timeEnd - timeStart;
+            
+            // Calculate time based on X position - snap to nearest integer
+            const exactTime = timeStart + (canvasX / canvas.width) * timeSteps;
+            const roundedTime = Math.round(exactTime); // Snap to nearest whole number
+            
+            // Check if time slot is available
+            const existingPoint = points.find(p => p.time === roundedTime);
+            if (existingPoint) {
+                status.textContent = 'Status: Time slot already occupied. Use right-click to delete existing point.';
+                return;
+            }
+            
+            // Check if time is within range
+            if (roundedTime < timeStart || roundedTime > timeEnd) {
+                status.textContent = 'Status: Time is out of range';
+                return;
+            }
+            
+            // Recalculate canvasX to snap to the grid
+            const snappedCanvasX = ((roundedTime - timeStart) / timeSteps) * canvas.width;
+            
+            // Calculate cost based on Y position
+            const cost = costRange[1] - (canvasY / canvas.height) * (costRange[1] - costRange[0]);
+            
+            points.push({ 
+                canvasX: snappedCanvasX, 
+                canvasY, 
+                time: roundedTime, 
+                cost: Math.round(cost) 
+            });
+            
+            initCanvas();
+            status.textContent = `Status: Point added (${roundedTime} ${periodType}s, ${Math.round(cost).toLocaleString()} units)`;
+        }
+
+        // Draw points
+        function drawPoints() {
+            points.forEach(point => {
+                // Point
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(point.canvasX, point.canvasY, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Label
+                ctx.fillStyle = 'blue';
+                ctx.font = '11px Arial';
+                const label = `${point.time}${periodType.charAt(0)}`;
+                ctx.fillText(label, point.canvasX + 8, point.canvasY - 8);
+            });
+        }
+
+        // Draw curve
+        function drawCurve() {
+            if (points.length < 2) return;
+            
+            const sortedPoints = [...points].sort((a, b) => a.time - b.time);
+            
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            ctx.moveTo(sortedPoints[0].canvasX, sortedPoints[0].canvasY);
+            for (let i = 1; i < sortedPoints.length; i++) {
+                ctx.lineTo(sortedPoints[i].canvasX, sortedPoints[i].canvasY);
+            }
+            
+            ctx.stroke();
+        }
+
+        // Update information
+        function updateInfo() {
+            pointCounter.textContent = `Points: ${points.length}`;
+            updateTimeSlotsDisplay();
+            
+            if (points.length < 4) {
+                status.textContent = 'Status: Need at least 4 points';
+            } else {
+                status.textContent = 'Status: Ready to process';
+            }
+        }
+
+        // Clear canvas
+        function clearCanvas() {
+            points = [];
+            smoothedPoints = [];
+            csvData = '';
+            results.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            initializeTimeSlots();
+            initCanvas();
+            status.textContent = 'Status: Canvas cleared';
+        }
+
+        // Demo data
+        function loadDemoData() {
+            points = [];
+            const [timeStart, timeEnd] = timeRange;
+            const timeSteps = timeEnd - timeStart;
+            
+            // S-curve demo data - only at integer time points
+            const demoPoints = [
+                { time: timeStart, cost: costRange[0] },
+                { time: timeStart + 3, cost: costRange[1] * 0.2 },
+                { time: timeStart + 6, cost: costRange[1] * 0.5 },
+                { time: timeStart + 9, cost: costRange[1] * 0.8 },
+                { time: timeEnd, cost: costRange[1] }
+            ];
+            
+            // Convert to canvas coordinates
+            demoPoints.forEach(point => {
+                const canvasX = ((point.time - timeStart) / timeSteps) * canvas.width;
+                const canvasY = ((costRange[1] - point.cost) / (costRange[1] - costRange[0])) * canvas.height;
+                points.push({
+                    canvasX,
+                    canvasY,
+                    time: point.time,
+                    cost: point.cost
+                });
+            });
+            
+            initCanvas();
+            status.textContent = 'Status: Demo data loaded';
+        }
+
+        // Process data based on export type
+        function processData() {
+            if (points.length < 4) {
+                alert('Need at least 4 points!');
+                return;
+            }
+            
+            const sortedPoints = [...points].sort((a, b) => a.time - b.time);
+            
+            if (exportType === 'original') {
+                // Export only original points
+                smoothedPoints = sortedPoints.map(p => ({ time: p.time, cost: p.cost }));
+            } else {
+                // Create smoothed curve
+                smoothedPoints = [];
+                const numPoints = (exportType === 'smoothed') ? 200 : 100;
+                const [timeStart, timeEnd] = timeRange;
+                
+                for (let i = 0; i < numPoints; i++) {
+                    const t = timeStart + (i / (numPoints - 1)) * (timeEnd - timeStart);
+                    
+                    // Find surrounding points for interpolation
+                    let prevPoint = sortedPoints[0];
+                    let nextPoint = sortedPoints[sortedPoints.length - 1];
+                    
+                    for (let j = 0; j < sortedPoints.length - 1; j++) {
+                        if (t >= sortedPoints[j].time && t <= sortedPoints[j + 1].time) {
+                            prevPoint = sortedPoints[j];
+                            nextPoint = sortedPoints[j + 1];
+                            break;
+                        }
+                    }
+                    
+                    // Linear interpolation
+                    const ratio = (t - prevPoint.time) / (nextPoint.time - prevPoint.time);
+                    const cost = prevPoint.cost + ratio * (nextPoint.cost - prevPoint.cost);
+                    
+                    smoothedPoints.push({ time: t, cost: Math.round(cost) });
+                }
+                
+                if (exportType === 'both') {
+                    // Combine original and smoothed points
+                    const combined = [...sortedPoints.map(p => ({ time: p.time, cost: p.cost }))];
+                    smoothedPoints.forEach(point => {
+                        // Only add smoothed point if it doesn't duplicate an original point
+                        if (!combined.some(p => Math.abs(p.time - point.time) < 0.01)) {
+                            combined.push(point);
+                        }
+                    });
+                    smoothedPoints = combined.sort((a, b) => a.time - b.time);
+                }
+            }
+            
+            createCSV();
+            showResults();
+            status.textContent = 'Status: Data processed successfully!';
+        }
+
+        // Create CSV
+        function createCSV() {
+            let csv = 'time,cost\n';
+            smoothedPoints.forEach(point => {
+                csv += `${point.time.toFixed(2)},${point.cost.toFixed(2)}\n`;
+            });
+            csvData = csv;
+        }
+
+        // Show results
+        function showResults() {
+            let html = '<h4>📋 Data (first 10 rows):</h4>';
+            html += '<table>';
+            html += '<tr><th>Time (' + periodType + 's)</th><th>Cost</th></tr>';
+            
+            for (let i = 0; i < Math.min(10, smoothedPoints.length); i++) {
+                const point = smoothedPoints[i];
+                html += `<tr><td>${point.time.toFixed(2)}</td><td>${point.cost.toFixed(2)}</td></tr>`;
+            }
+            
+            html += '</table>';
+            html += `<p><strong>Export type:</strong> ${exportType}</p>`;
+            html += `<p><strong>Total points:</strong> ${smoothedPoints.length}</p>`;
+            html += `<p><strong>Time range:</strong> ${smoothedPoints[0].time.toFixed(1)} - ${smoothedPoints[smoothedPoints.length - 1].time.toFixed(1)} ${periodType}s</p>`;
+            html += `<p><strong>Cost range:</strong> ${Math.min(...smoothedPoints.map(p => p.cost)).toLocaleString()} - ${Math.max(...smoothedPoints.map(p => p.cost)).toLocaleString()} units</p>`;
+            
+            dataPreview.innerHTML = html;
+            results.style.display = 'block';
+            downloadBtn.style.display = 'inline-block';
+        }
+
+        // Download CSV
+        function downloadCSV() {
+            const blob = new Blob([csvData], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `digitized_curve_${exportType}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initializeTimeSlots();
+            initCanvas();
+        };
+    </script>
+</body>
+</html>
